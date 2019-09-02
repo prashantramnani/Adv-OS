@@ -1,5 +1,3 @@
-CONFIG_MODULE_SIG=n # workaround for module verification failed
-
 obj-m+=mysort.o
 
 all:
