@@ -34,7 +34,10 @@ int main()
         sprintf(buff, "%d", val);
         printf("%s %d\n", buff, strlen(buff));
 
-        assert(write(fd, buff, strlen(buff)) == (N - i - 1));
+        if (write(fd, buff, strlen(buff)) == (N - i - 1)) {
+            printf("Unexpected behaviour from write\n");
+            break;
+        }
     }
 
     close(fd);

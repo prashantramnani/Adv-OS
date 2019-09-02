@@ -85,7 +85,7 @@ static void fill_entry(struct list_node *entry, const char *buf, size_t count)
         entry->info.data.charp = (char **)kmalloc(sizeof(char *) * entry->info.size, GFP_KERNEL);
     }
 
-    printk(KERN_ALERT "Filled entry for pid = %d\n", current->pid);
+    printk(KERN_ALERT "Filled entry for pid = %d, size = %d, type = %d\n", current->pid, entry->info.size, entry->info.type);
 }
 
 static int open(struct inode *inodep, struct file *filep)
@@ -93,15 +93,16 @@ static int open(struct inode *inodep, struct file *filep)
     create_new_entry(current->pid);
     return 0;
 }
-// test 2
+
 static ssize_t write(struct file *file, const char *buff, size_t count, loff_t *pos)
 {
     printk(KERN_ALERT "Write from process pid = %d\n", current->pid);
     int pid = current->pid;
 
-    char *buf = (char *)kmalloc(sizeof(char) * count, GFP_KERNEL);
+    char *buf = (char *)kmalloc(sizeof(char) * (count+1), GFP_KERNEL);
     // error handling
     copy_from_user(buf, buff, count);
+    buf[count] = '\0';
     printk(KERN_ALERT "writing %s\n", buf);
 
     struct list_head *ptr;
@@ -148,7 +149,8 @@ static ssize_t read(struct file *file, char *buf, size_t count, loff_t *pos)
     // error handling
     int pid = current->pid;
     struct list_head *ptr;
-
+    
+    /*
     list_for_each(ptr, &head) {
         struct list_node *entry = list_entry(ptr, struct list_node, process_list);
 
@@ -165,7 +167,7 @@ static ssize_t read(struct file *file, char *buf, size_t count, loff_t *pos)
         }
         return 0; // return size;
     }
-
+    */
     //error handling
     return -1;
 }
@@ -185,7 +187,8 @@ static int mysort_init(void)
     if (!entry)
     {
         printk(KERN_ALERT "-enoent from init\n");
-        return -ENOENT;}
+        return -ENOENT;
+    }
     return 0;
 }
 
