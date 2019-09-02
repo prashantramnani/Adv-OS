@@ -93,7 +93,7 @@ static int open(struct inode *inodep, struct file *filep)
     create_new_entry(current->pid);
     return 0;
 }
-
+// test
 static ssize_t write(struct file *file, const char *buff, size_t count, loff_t *pos)
 {
     printk(KERN_ALERT "Write from process pid = %d\n", current->pid);
