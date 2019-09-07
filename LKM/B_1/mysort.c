@@ -182,10 +182,7 @@ static ssize_t write(struct file *file, const char *buff, size_t count, loff_t *
                 ;// ignore
             } else if (entry->type == INT) {
                 // error handling
-                char buffer[4];
-                copy_from_user(buffer, buff, 4 * sizeof(char));
-                kstrtoint(buffer, 10, &(entry->data.intp[entry->writep]));
-
+                copy_from_user(&(entry->data.intp[entry->writep]), buff, sizeof(int));
                 entry->writep++;
                 ret = entry->size - entry->writep;
                 if (entry->writep == entry->size) {
@@ -237,7 +234,7 @@ static ssize_t read(struct file *file, char *buf, size_t count, loff_t *pos)
                 ret = -1;
             }
             if (entry->type == INT) {
-                snprintf(buf, sizeof(int), "%d", entry->data.intp[entry->readp]);
+                copy_to_user(buf, &(entry->data.intp[entry->readp]), sizeof(int));
             } else if (entry->type == STRING) {
                 copy_to_user(buf, entry->data.charp[entry->readp], strlen(entry->data.charp[entry->readp]) + 1);
             }

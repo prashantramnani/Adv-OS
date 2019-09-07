@@ -52,11 +52,9 @@ int test_integers()
     printf("Writing numbers to LKM\n");
     for (i = 0; i < N; i++) {
         int val = rand() % MAX_INT;
-        char buff[4]; // 4 bytes for 32 bit ints
-        sprintf(buff, "%d", val);
         arr[i] = val;
 
-        if (write(fd, buff, strlen(buff)) != (N - i - 1)) {
+        if (write(fd, &arr[i], sizeof(int)) != (N - i - 1)) {
             printf("Unexpected behaviour from write\n");
             flg = -1;
             break;
@@ -73,15 +71,13 @@ int test_integers()
         qsort(arr, N, sizeof(int), cmp_int);
 
         for (i = 0; i < N; i++) {
-            char buff[4];
-
-            if (read(fd, buff, 4) < 0) {
+            int v;
+            if (read(fd, &v, sizeof(int)) < 0) {
                 printf("Unexpected behaviour from read\n");
                 break;
             };
-            int v = atoi(buff);
             if (arr[i] != v) {
-                printf("Sorting order wrong from LKM: i = %d, expected = %d, found =  ", arr[i], v);
+                printf("Sorting order wrong from LKM: i = %d, expected = %d, found =  %d", i, arr[i], v);
                 break;
             }
             if (i ==(N - 1))
@@ -115,7 +111,7 @@ int test_strings()
     for (i = 0; i < N; i++) {
         scanf("%100s", arr[i]);
 
-        if (write(fd, arr[i], strlen(arr[i])) != (N - i - 1)) {
+        if (write(fd, &arr[i], strlen(arr[i])) != (N - i - 1)) {
             printf("Unexpected behaviour from write\n");
             flg = -1;
             break;
@@ -134,7 +130,7 @@ int test_strings()
         for (i = 0; i < N; i++) {
             char buff[100];
 
-            if (read(fd, buff, 100) < 0) {
+            if (read(fd, &buff, 100) < 0) {
                 printf("Unexpected behaviour from read\n");
                 break;
             };
