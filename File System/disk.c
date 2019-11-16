@@ -1,4 +1,6 @@
 #include "disk.h"
+#include <sys/stat.h>
+#include <fcntl.h>
 
 static disk_list *head = NULL;
 
@@ -13,25 +15,6 @@ disk_list* search_file(char *filename)
             return p;
 
     return NULL;
-}
-
-static int _fread(void *ptr, size_t size, FILE *fp)
-{
-    fread(ptr, size, 1, fp);
-    if (ferror(fp))
-        return -ERR;
-    
-    return 0;
-}
-
-static int _fwrite(void *ptr, size_t size, FILE *fp)
-{
-    fwrite(ptr, size, 1, fp);
-    if (ferror(fp))
-        return -ERR;
-
-    fseek(fp, 0, SEEK_SET);
-    return 0;
 }
 
 void add_to_list(char *filename, int fd)
@@ -52,16 +35,39 @@ void add_to_list(char *filename, int fd)
     p->fd = fd;
 }
 
-int create_disk(char *filename, int nbytes)
+int del_from_list(int fd)
 {
-    if (search_file(filename) != NULL)
-        return -ERR;
-    
-    FILE *fp = fopen(filename, "wb+");
-    if (fp == NULL)
+    if (head == NULL)
         return -ERR;
 
-    int fd = fileno(fp);
+    disk_list *p, *q;
+    for (q = NULL, p = head; p != NULL; q = p, p = p->next)
+        if (p->fd == fd) {
+            if (q == NULL)
+                head = p->next;
+            else
+                q->next = p->next;
+            close(fd);
+            free(p);
+
+            return 0;
+        }
+
+    return -ERR; // Not found diskno.
+}
+
+int create_disk(char *filename, int nbytes)
+{
+    disk_list* p = search_file(filename);
+    if (p) {
+        del_from_list(p->fd);
+        // return -ERR;
+    }
+    
+    int fd = open(filename, O_RDWR|O_CREAT|O_TRUNC, 0777);
+    if (fd < 0)
+        return -ERR;
+
     add_to_list(filename, fd);
     ftruncate(fd, nbytes);
 
@@ -70,7 +76,10 @@ int create_disk(char *filename, int nbytes)
     stats.blocks = (nbytes - sizeof(disk_stat))/ BLOCKSIZE; 
     stats.reads = stats.writes = 0;
    
-    return _fwrite(&stats, sizeof(disk_stat), fp);
+    write(fd, &stats, sizeof(disk_stat));
+
+    printf("Created disk of size - %u, with blocks = %u\n", stats.size, stats.blocks);
+    return 0; 
 }
 
 int open_disk(char* filename)
@@ -84,89 +93,52 @@ int open_disk(char* filename)
 
 disk_stat* get_disk_stat(int disk)
 {
-    FILE* fp = fdopen(disk, "r");
-    if (fp == NULL)
+    if (disk <= 0)
         return NULL;
 
-    fseek(fp, 0, SEEK_SET);
-
-    disk_stat *p = (disk_stat*) malloc(sizeof(disk_stat));
-    
-    if (_fread(p, sizeof(disk_stat), fp) < 0)
+    disk_stat *p = (disk_stat*) malloc(sizeof(disk_stat));    
+    lseek(disk, 0, SEEK_SET);
+    if (read(disk, p, sizeof(disk_stat)) < 0)
         return NULL;
 
     return p;
 }
 
-int update_disk_stat(disk_stat *p, FILE *fp)
+int update_disk_stat(disk_stat *p, int fd)
 {
-    if (p == NULL) 
-        return -ERR;
-    fseek(fp, 0, SEEK_SET);
-    return _fwrite(p, sizeof(disk_stat), fp);
+    lseek(fd, 0, SEEK_SET);
+    write(fd, p, sizeof(disk_stat));
+
+    free(p);
+    return 0;
 }
 
 int read_block(int disk, int blocknr, void *block_data)
 {
-    if (disk == 0)
-        return -ERR;
     disk_stat* p = get_disk_stat(disk);
-    if (p == NULL)
+    if (p == NULL || blocknr < 0 || blocknr >= p->blocks)
         return -ERR;
 
-    if (blocknr < 0 || blocknr >= p->blocks)
-        return -ERR;
+    lseek(disk, sizeof(disk_stat) + blocknr * BLOCKSIZE, SEEK_SET);
 
-    FILE *fp = fdopen(disk, "wb+");
-    fseek(fp, blocknr * BLOCKSIZE, DISK_SEEK_SET);
-
-    if (_fread(block_data, BLOCKSIZE, fp) < 0)
+    if (read(disk, block_data, BLOCKSIZE) < 0)
         return -ERR;
-   
     p->reads++;
-    return update_disk_stat(p, fp);
+    return update_disk_stat(p, disk);
 }
 
 int write_block(int disk, int blocknr, void *block_data)
 {
-    if (disk == 0)
-        return -ERR;
     disk_stat *p = get_disk_stat(disk);
-    if (p == NULL)
+    if (p == NULL || blocknr < 0 || blocknr >= p->blocks)
         return -ERR;
 
-    if (blocknr < 0 || blocknr >= p->blocks)
-        return -ERR;
-
-    FILE *fp = fdopen(disk, "wb+");
-    fseek(fp, blocknr * BLOCKSIZE, DISK_SEEK_SET);
+    lseek(disk, sizeof(disk_stat) + blocknr * BLOCKSIZE, SEEK_SET);
     
-    if (_fwrite(block_data, BLOCKSIZE, fp) < 0)
+    if (write(disk, block_data, BLOCKSIZE) < 0)
         return -ERR;
-
     p->writes++;
-    return update_disk_stat(p, fp);
-}
-
-int del_from_list(int fd)
-{
-    if (head == NULL)
-        return -ERR;
-
-    disk_list *p, *q;
-    for (q = NULL, p = head; p != NULL; q = p, p = p->next)
-        if (p->fd == fd) {
-            if (q == NULL)
-                head = p->next;
-            else
-                q->next = p->next;
-            fclose(fdopen(p->fd, "r"));
-            free(p);
-
-            return 0;
-        }
-
-    return -ERR; // Not found diskno.
+    return update_disk_stat(p, disk);
 }
 
 int close_disk(int disk)

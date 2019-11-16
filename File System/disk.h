@@ -15,8 +15,6 @@ typedef struct disk {
 	uint32_t writes; // number of block writes performed
 } disk_stat;
 
-const static int DISK_SEEK_SET = SEEK_SET + sizeof(disk_stat);
-
 int create_disk(char *filename, int nbytes);
 
 int open_disk(char *filename);
